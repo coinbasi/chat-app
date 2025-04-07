@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Realtime Premium</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #1e1e2f; color: #fff; }
+        .container { max-width: 800px; margin: auto; padding: 20px; }
+        #login-container, #chat-container { display: none; }
+        input, button { padding: 10px; margin: 5px; border: none; border-radius: 5px; }
+        button { background-color: #4caf50; color: white; cursor: pointer; }
+        #messages { list-style: none; padding: 0; max-height: 300px; overflow-y: auto; background: #2c2c3e; border-radius: 5px; margin-bottom: 10px; }
+        #messages li { padding: 5px; border-bottom: 1px solid #444; }
+        #users { list-style: none; padding: 0; max-height: 100px; overflow-y: auto; background: #2c2c3e; border-radius: 5px; margin-bottom: 10px; }
+        #users li { padding: 5px; border-bottom: 1px solid #444; cursor: pointer; }
+        .emoji { cursor: pointer; margin: 0 3px; }
+        img.chat-img { max-width: 150px; border-radius: 5px; margin-top: 5px; }
+        .timestamp { font-size: 0.8em; color: #ccc; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Chat Realtime Premium</h2>
+        <div id="login-container">
+            <input id="reg-username" placeholder="Username">
+            <input id="reg-password" type="password" placeholder="Password">
+            <button onclick="register()">Registrasi</button>
+            <br>
+            <input id="log-username" placeholder="Username">
+            <input id="log-password" type="password" placeholder="Password">
+            <button onclick="login()">Login</button>
+        </div>
+
+        <div id="chat-container">
+            <h3>Online:</h3>
+            <ul id="users"></ul>
+            <h3>Chat:</h3>
+            <ul id="messages"></ul>
+            <input id="messageInput" type="text" placeholder="Ketik pesan..." />
+            <input id="fileInput" type="file" accept="image/*" />
+            <button onclick="sendMessage()">Kirim</button>
+            <div>
+                <span class="emoji" onclick="addEmoji('ðŸ˜€')">ðŸ˜€</span>
+                <span class="emoji" onclick="addEmoji('ðŸ”¥')">ðŸ”¥</span>
+                <span class="emoji" onclick="addEmoji('â¤ï¸')">â¤ï¸</span>
+                <span class="emoji" onclick="addEmoji('ðŸŽ‰')">ðŸŽ‰</span>
+            </div>
+        </div>
+    </div>
+
+    <audio id="notif-sound" src="https://www.myinstants.com/media/sounds/message-pop-alert.mp3"></audio>
+
+    <script>
+        const socket = io();
+        let username = "";
+        let privateRecipient = null;
+
+        function register() {
+            const user = document.getElementById('reg-username').value;
+            const pass = document.getElementById('reg-password').value;
+            socket.emit('register', { user, pass });
+        }
+
+        function login() {
+            const user = document.getElementById('log-username').value;
+            const pass = document.getElementById('log-password').value;
+            socket.emit('login', { user, pass });
+        }
+
+        socket.on('loginSuccess', (user) => {
+            username = user;
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'block';
+        });
+
+        socket.on('userList', (users) => {
+            document.getElementById('users').innerHTML = users.map(u => `<li onclick="selectPrivate('${u}')">${u}</li>`).join("");
+        });
+
+        socket.on('chatMessage', ({ sender, message, image, time }) => {
+            const li = document.createElement('li');
+            const ts = new Date(time).toLocaleTimeString();
+            li.innerHTML = `<strong>${sender}</strong>: ${message} <span class="timestamp">${ts}</span>`;
+            if (image) {
+                const img = document.createElement('img');
+                img.src = image;
+                img.classList.add('chat-img');
+                li.appendChild(img);
+            }
+            document.getElementById('messages').appendChild(li);
+            document.getElementById('notif-sound').play();
+        });
+
+        function sendMessage() {
+            const msg = document.getElementById('messageInput').value;
+            const file = document.getElementById('fileInput').files[0];
+            const time = new Date();
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    socket.emit('chatMessage', { sender: username, message: msg, image: reader.result, to: privateRecipient, time });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                socket.emit('chatMessage', { sender: username, message: msg, to: privateRecipient, time });
+            }
+            document.getElementById('messageInput').value = "";
+            document.getElementById('fileInput').value = "";
+        }
+
+        function addEmoji(emoji) {
+            document.getElementById('messageInput').value += emoji;
+        }
+
+        function selectPrivate(user) {
+            privateRecipient = user;
+            alert(`Private chat dengan ${user}`);
+        }
+    </script>
+</body>
+</html>
